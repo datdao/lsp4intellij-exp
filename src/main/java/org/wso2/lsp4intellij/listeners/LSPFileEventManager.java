@@ -54,7 +54,10 @@ class LSPFileEventManager {
      */
     static void willSave(Document doc) {
         String uri = FileUtils.VFSToURI(FileDocumentManager.getInstance().getFile(doc));
-        EditorEventManagerBase.willSave(uri);
+        EditorEventManager manager = EditorEventManagerBase.forUri(uri);
+        if (manager != null) {
+            manager.willSave();
+        }
     }
 
     /**
@@ -80,9 +83,15 @@ class LSPFileEventManager {
         }
 
         ApplicationUtils.invokeAfterPsiEvents(() -> {
-            EditorEventManagerBase.documentSaved(uri);
-            FileUtils.findProjectsFor(file).forEach(p -> changedConfiguration(uri,
-                FileUtils.projectToUri(p), FileChangeType.Changed));
+            EditorEventManager manager = EditorEventManagerBase.forUri(uri);
+            if (manager != null) {
+                manager.documentSaved();
+                FileUtils.findProjectsFor(file).forEach(p -> changedConfiguration(uri,
+                    FileUtils.projectToUri(p), FileChangeType.Changed));
+            } else {
+                FileUtils.findProjectsFor(file).forEach(p -> changedConfiguration(uri,
+                    FileUtils.projectToUri(p), FileChangeType.Changed));
+            }
         });
     }
 

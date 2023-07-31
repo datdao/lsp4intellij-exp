@@ -22,13 +22,8 @@ import com.intellij.openapi.editor.LogicalPosition;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.util.DocumentUtil;
-import org.eclipse.lsp4j.InsertReplaceEdit;
 import org.eclipse.lsp4j.Position;
-import org.eclipse.lsp4j.TextEdit;
-import org.eclipse.lsp4j.jsonrpc.messages.Either;
 
-import java.util.List;
-import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 import static java.lang.Math.max;
@@ -40,9 +35,36 @@ import static org.wso2.lsp4intellij.utils.ApplicationUtils.computableReadAction;
  */
 public class DocumentUtils {
 
-    private static final Logger LOG = Logger.getInstance(DocumentUtils.class);
+    private static Logger LOG = Logger.getInstance(DocumentUtils.class);
     public static final String WIN_SEPARATOR = "\r\n";
     public static final String LINUX_SEPARATOR = "\n";
+
+    /**
+     * Gets the line at the given offset given an editor and bolds the text between the given offsets
+     *
+     * @param editor      The editor
+     * @param startOffset The starting offset
+     * @param endOffset   The ending offset
+     * @return The document line
+     */
+    public static String getLineText(Editor editor, int startOffset, int endOffset) {
+        return computableReadAction(() -> {
+            Document doc = editor.getDocument();
+            int lineIdx = doc.getLineNumber(startOffset);
+            int lineStartOff = doc.getLineStartOffset(lineIdx);
+            int lineEndOff = doc.getLineEndOffset(lineIdx);
+            String line = doc.getText(new TextRange(lineStartOff, lineEndOff));
+            int startOffsetInLine = startOffset - lineStartOff;
+            int endOffsetInLine = endOffset - lineStartOff;
+            StringBuilder sb = new StringBuilder( line.length()+7 );
+            sb.append(line, 0, startOffsetInLine);
+            sb.append("<b>");
+            sb.append(line, startOffsetInLine, endOffsetInLine);
+            sb.append("</b>");
+            sb.append(line, endOffsetInLine, line.length());
+            return sb.toString();
+        });
+    }
 
     /**
      * Transforms a LogicalPosition (IntelliJ) to an LSP Position
@@ -85,7 +107,10 @@ public class DocumentUtils {
             int line = doc.getLineNumber(offset);
             int lineStart = doc.getLineStartOffset(line);
             String lineTextBeforeOffset = doc.getText(TextRange.create(lineStart, offset));
-            int column = lineTextBeforeOffset.length();
+
+            int tabs = StringUtil.countChars(lineTextBeforeOffset, '\t');
+            int tabSize = getTabSize(editor);
+            int column = lineTextBeforeOffset.length() - tabs * (tabSize - 1);
             return new Position(line, column);
         });
     }
@@ -107,10 +132,7 @@ public class DocumentUtils {
             }
             // lsp and intellij start lines/columns zero-based
             Document doc = editor.getDocument();
-            int line = max(0, Math.min(pos.getLine(), doc.getLineCount()));
-            if (line >= doc.getLineCount()) {
-                return doc.getTextLength();
-            }
+            int line = max(0, Math.min(pos.getLine(), doc.getLineCount() - 1));
             String lineText = doc.getText(DocumentUtil.getLineTextRange(doc, line));
 
             final int positionInLine = max(0, min(lineText.length(), pos.getCharacter()));
@@ -129,6 +151,8 @@ public class DocumentUtils {
             return Math.min(max(offset, 0), docLength);
 
         });
+
+
     }
 
     @Nullable
@@ -155,11 +179,9 @@ public class DocumentUtils {
         return computableReadAction(() -> editor.getSettings().getTabSize(editor.getProject()));
     }
 
-    public static boolean shouldUseSpaces(Editor editor) {
+    public static boolean shouldUseSpaces(Editor editor){
         return computableReadAction(() -> !editor.getSettings().isUseTabCharacter(editor.getProject()));
     }
 
-    public static List<Either<TextEdit, InsertReplaceEdit>> toEither(List<TextEdit> edits) {
-        return edits.stream().map(Either::<TextEdit, InsertReplaceEdit>forLeft).collect(Collectors.toList());
-    }
+
 }

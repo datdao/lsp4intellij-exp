@@ -20,6 +20,7 @@ import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.DataContext;
 import com.intellij.openapi.actionSystem.DefaultActionGroup;
+import com.intellij.openapi.components.ServiceManager;
 import com.intellij.openapi.project.DumbAware;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
@@ -27,6 +28,7 @@ import com.intellij.openapi.ui.popup.JBPopupFactory;
 import com.intellij.openapi.ui.popup.ListPopup;
 import com.intellij.openapi.wm.StatusBar;
 import com.intellij.openapi.wm.StatusBarWidget;
+import com.intellij.openapi.wm.StatusBarWidgetFactory;
 import com.intellij.openapi.wm.WindowManager;
 import com.intellij.ui.awt.RelativePoint;
 import com.intellij.util.Consumer;
@@ -38,6 +40,7 @@ import org.wso2.lsp4intellij.client.languageserver.ServerStatus;
 import org.wso2.lsp4intellij.client.languageserver.wrapper.LanguageServerWrapper;
 import org.wso2.lsp4intellij.contributors.icon.LSPDefaultIconProvider;
 import org.wso2.lsp4intellij.requests.Timeouts;
+import org.wso2.lsp4intellij.utils.ApplicationUtils;
 import org.wso2.lsp4intellij.utils.GUIUtils;
 
 import java.awt.*;
@@ -102,8 +105,17 @@ public class LSPServerStatusWidget implements StatusBarWidget {
         }
     }
 
-    @Override
-    public void dispose() {}
+    public void dispose() {
+        WindowManager manager = WindowManager.getInstance();
+        if (manager != null && project != null && !project.isDisposed()) {
+            StatusBar statusBar = manager.getStatusBar(project);
+            if (statusBar != null)
+                ApplicationUtils.invokeLater(() -> {
+                    StatusBarWidgetFactory factory = ServiceManager.getService(StatusBarWidgetFactory.class);
+                    factory.disposeWidget(this);
+                });
+        }
+    }
 
     @NotNull
     @Override

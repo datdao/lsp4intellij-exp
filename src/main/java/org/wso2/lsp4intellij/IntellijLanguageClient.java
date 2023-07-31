@@ -341,10 +341,8 @@ public class IntellijLanguageClient implements ApplicationComponent, Disposable 
         if (wrapper.getProject() != null) {
             String[] extensions = wrapper.getServerDefinition().ext.split(LanguageServerDefinition.SPLIT_CHAR);
             for (String ext : extensions) {
-                MutablePair<String, String> extProjectPair = new MutablePair<>(ext, FileUtils.pathToUri(
-                        new File(wrapper.getProjectRootPath()).getAbsolutePath()));
-                extToLanguageWrapper.remove(extProjectPair);
-                extToServerDefinition.remove(extProjectPair);
+                extToLanguageWrapper.remove(new MutablePair<>(ext, FileUtils.pathToUri(
+                        new File(wrapper.getProjectRootPath()).getAbsolutePath())));
             }
         } else {
             LOG.error("No attached projects found for wrapper");

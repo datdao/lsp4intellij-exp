@@ -17,7 +17,6 @@ package org.wso2.lsp4intellij.contributors.annotator;
 
 import com.intellij.codeInspection.ProblemHighlightType;
 import com.intellij.lang.annotation.Annotation;
-import com.intellij.lang.annotation.AnnotationBuilder;
 import com.intellij.lang.annotation.AnnotationHolder;
 import com.intellij.lang.annotation.ExternalAnnotator;
 import com.intellij.lang.annotation.HighlightSeverity;
@@ -26,7 +25,6 @@ import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiFile;
-import com.intellij.util.SmartList;
 import org.eclipse.lsp4j.Diagnostic;
 import org.eclipse.lsp4j.DiagnosticSeverity;
 import org.eclipse.lsp4j.DiagnosticTag;
@@ -96,8 +94,7 @@ public class LSPAnnotator extends ExternalAnnotator<Object, Object> {
     @Override
     public void apply(@NotNull PsiFile file, Object annotationResult, @NotNull AnnotationHolder holder) {
 
-        LanguageServerWrapper languageServerWrapper = LanguageServerWrapper.forVirtualFile(file.getVirtualFile(), file.getProject());
-        if (languageServerWrapper == null || languageServerWrapper.getStatus() != ServerStatus.INITIALIZED) {
+        if (LanguageServerWrapper.forVirtualFile(file.getVirtualFile(), file.getProject()).getStatus() != ServerStatus.INITIALIZED) {
             return;
         }
 
@@ -135,14 +132,12 @@ public class LSPAnnotator extends ExternalAnnotator<Object, Object> {
             return;
         }
         annotations.forEach(annotation -> {
+            Annotation anon = holder.newAnnotation(annotation.getSeverity(), annotation.getMessage()).createAnnotation();
+
             if (annotation.getQuickFixes() == null || annotation.getQuickFixes().isEmpty()) {
                 return;
             }
-            AnnotationBuilder builder = holder.newAnnotation(annotation.getSeverity(), annotation.getMessage());
-            for (Annotation.QuickFixInfo quickFixInfo : annotation.getQuickFixes()) {
-                builder = builder.withFix(quickFixInfo.quickFix);
-            }
-            builder.create();
+            annotation.getQuickFixes().forEach(quickFixInfo -> anon.registerFix(quickFixInfo.quickFix));
         });
     }
 
@@ -155,12 +150,9 @@ public class LSPAnnotator extends ExternalAnnotator<Object, Object> {
         }
         final TextRange range = new TextRange(start, end);
 
-        holder.newAnnotation(lspToIntellijAnnotationsMap.get(diagnostic.getSeverity()), diagnostic.getMessage())
+        return holder.newAnnotation(lspToIntellijAnnotationsMap.get(diagnostic.getSeverity()), diagnostic.getMessage())
                 .range(range)
-                .create();
-
-        SmartList<Annotation> asList = (SmartList<Annotation>) holder;
-        return asList.get(asList.size() - 1);
+                .createAnnotation();
     }
 
     private void createAnnotations(AnnotationHolder holder, EditorEventManager eventManager) {

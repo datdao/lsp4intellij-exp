@@ -200,36 +200,6 @@ You can use the following concrete class:
     ProcessBuilder process = new ProcessBuilder("java","-jar","path/to/language-server.jar");
     new ProcessBuilderServerDefinition("bsl,os", process);
     ```
-
-- **Custom Initialization Params**
-
-  If your LSP server needs some custom initialization options when connecting, you can define a class that extends `ProcessBuilderServerDefinition` or `RawCommandServerDefinition`, and then override the `customizeInitializeParams` method to modify any property of the `InitializeParams`.
-
-  Here's an example:
-
-  ```java
-  public class MyServerDefinition extends ProcessBuilderServerDefinition {
-      public MyServerDefinition(String ext, ProcessBuilder process) {
-          super(ext, process);
-      }
-
-      @Override
-      public void customizeInitializeParams(InitializeParams params) {
-          params.clientInfo = new ClientInfo("MyName", "MyVersion");
-      }
-  }
-  ```
-
-  Finally, assign your class as a ServerDefinition:
-
-  ```java
-  ProcessBuilder process = new ProcessBuilder("path/to/launcher-script.sh");
-  IntellijLanguageClient.addServerDefinition(new MyServerDefinition("xxx", processBuilder));
-  ```
-
-  You can refer to [#311](https://github.com/ballerina-platform/lsp4intellij/pull/311) for more details.
-
-
 > **Note:** All of the above implementations will use server stdin/stdout to communicate.
 
 ![](resources/images/lang-server-connect.gif)

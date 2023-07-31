@@ -25,7 +25,6 @@ import com.intellij.openapi.fileEditor.TextEditor;
 import com.intellij.openapi.fileTypes.FileType;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectManager;
-import com.intellij.openapi.util.io.FileUtilRt;
 import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiDocumentManager;
@@ -198,7 +197,12 @@ public class FileUtils {
      * @return the URI
      */
     public static String VFSToURI(VirtualFile file) {
-        return file == null? null : pathToUri(file.getPath());
+        try {
+            return sanitizeURI(new URL(file.getUrl().replace(" ", SPACE_ENCODED)).toURI().toString());
+        } catch (MalformedURLException | URISyntaxException e) {
+            LOG.warn(e);
+            return null;
+        }
     }
 
     /**
@@ -281,7 +285,7 @@ public class FileUtils {
      * @return The uri
      */
     public static String pathToUri(@Nullable String path) {
-        return path != null ? sanitizeURI(new File(path).toURI().toString()) : null;
+        return path != null ? sanitizeURI(new File(path.replace(" ", SPACE_ENCODED)).toURI().toString()) : null;
     }
 
     public static String projectToUri(Project project) {
@@ -360,7 +364,7 @@ public class FileUtils {
             if (file == null) {
                 return true;
             }
-            LSPExtensionManager lspExtManager = IntellijLanguageClient.getExtensionManagerFor(FileUtilRt.getExtension(file.getName()));
+            LSPExtensionManager lspExtManager = IntellijLanguageClient.getExtensionManagerFor(file.getVirtualFile().getExtension());
             if (lspExtManager == null) {
                 return true;
             }

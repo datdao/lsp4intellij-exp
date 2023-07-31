@@ -16,7 +16,6 @@
 package org.wso2.lsp4intellij.client.languageserver.wrapper;
 
 import com.intellij.codeInsight.daemon.DaemonCodeAnalyzer;
-import com.intellij.openapi.application.ApplicationInfo;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.fileEditor.FileEditor;
@@ -33,9 +32,7 @@ import com.intellij.util.PlatformIcons;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.eclipse.lsp4j.ClientCapabilities;
-import org.eclipse.lsp4j.ClientInfo;
 import org.eclipse.lsp4j.CodeActionCapabilities;
-import org.eclipse.lsp4j.CodeActionKindCapabilities;
 import org.eclipse.lsp4j.CodeActionLiteralSupportCapabilities;
 import org.eclipse.lsp4j.CompletionCapabilities;
 import org.eclipse.lsp4j.CompletionItemCapabilities;
@@ -52,6 +49,7 @@ import org.eclipse.lsp4j.OnTypeFormattingCapabilities;
 import org.eclipse.lsp4j.RangeFormattingCapabilities;
 import org.eclipse.lsp4j.ReferencesCapabilities;
 import org.eclipse.lsp4j.RenameCapabilities;
+import org.eclipse.lsp4j.SemanticHighlightingCapabilities;
 import org.eclipse.lsp4j.ServerCapabilities;
 import org.eclipse.lsp4j.SignatureHelpCapabilities;
 import org.eclipse.lsp4j.SymbolCapabilities;
@@ -61,7 +59,6 @@ import org.eclipse.lsp4j.TextDocumentSyncKind;
 import org.eclipse.lsp4j.TextDocumentSyncOptions;
 import org.eclipse.lsp4j.WorkspaceClientCapabilities;
 import org.eclipse.lsp4j.WorkspaceEditCapabilities;
-import org.eclipse.lsp4j.WorkspaceFolder;
 import org.eclipse.lsp4j.jsonrpc.Launcher;
 import org.eclipse.lsp4j.jsonrpc.ResponseErrorException;
 import org.eclipse.lsp4j.jsonrpc.messages.Either;
@@ -75,6 +72,7 @@ import org.jetbrains.annotations.Nullable;
 import org.wso2.lsp4intellij.IntellijLanguageClient;
 import org.wso2.lsp4intellij.client.DefaultLanguageClient;
 import org.wso2.lsp4intellij.client.ServerWrapperBaseClientContext;
+import org.wso2.lsp4intellij.statusbar.LSPServerStatusWidget;
 import org.wso2.lsp4intellij.client.languageserver.ServerOptions;
 import org.wso2.lsp4intellij.client.languageserver.ServerStatus;
 import org.wso2.lsp4intellij.client.languageserver.requestmanager.DefaultRequestManager;
@@ -89,8 +87,8 @@ import org.wso2.lsp4intellij.listeners.EditorMouseListenerImpl;
 import org.wso2.lsp4intellij.listeners.EditorMouseMotionListenerImpl;
 import org.wso2.lsp4intellij.listeners.LSPCaretListenerImpl;
 import org.wso2.lsp4intellij.requests.Timeouts;
-import org.wso2.lsp4intellij.statusbar.LSPServerStatusWidget;
 import org.wso2.lsp4intellij.statusbar.LSPServerStatusWidgetFactory;
+import org.wso2.lsp4intellij.utils.ApplicationUtils;
 import org.wso2.lsp4intellij.utils.FileUtils;
 import org.wso2.lsp4intellij.utils.LSPException;
 
@@ -100,7 +98,6 @@ import java.io.OutputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -258,7 +255,7 @@ public class LanguageServerWrapper {
     }
 
     public void notifyResult(Timeouts timeouts, boolean success) {
-        getWidget().ifPresent(widget -> widget.notifyResult(timeouts, success));
+        getWidget().notifyResult(timeouts, success);
     }
 
     public void notifySuccess(Timeouts timeouts) {
@@ -466,6 +463,7 @@ public class LanguageServerWrapper {
                 disconnect(ed);
             }
 
+            ApplicationUtils.restartPool();
             // sadly this whole editor closing stuff runs asynchronously, so we cannot be sure the state is really clean here...
             // therefore clear the mapping from here as it should be empty by now.
             DocumentEventManager.clearState();
@@ -551,7 +549,7 @@ public class LanguageServerWrapper {
                     setStatus(INITIALIZED);
                     return res;
                 });
-            } catch (LSPException | IOException | URISyntaxException e) {
+            } catch (LSPException | IOException e) {
                 LOG.warn(e);
                 invokeLater(() ->
                         notifier.showMessage(String.format("Can't start server due to %s", e.getMessage()),
@@ -561,26 +559,22 @@ public class LanguageServerWrapper {
         }
     }
 
-    private InitializeParams getInitParams() throws URISyntaxException {
+    private InitializeParams getInitParams() {
         InitializeParams initParams = new InitializeParams();
-        String projectRootUri = FileUtils.pathToUri(projectRootPath);
-        WorkspaceFolder workspaceFolder = new WorkspaceFolder(projectRootUri, this.project.getName());
-        initParams.setWorkspaceFolders(Collections.singletonList(workspaceFolder));
-
-        // workspace capabilities
+        initParams.setRootUri(FileUtils.pathToUri(projectRootPath));
+        //TODO update capabilities when implemented
         WorkspaceClientCapabilities workspaceClientCapabilities = new WorkspaceClientCapabilities();
         workspaceClientCapabilities.setApplyEdit(true);
         workspaceClientCapabilities.setDidChangeWatchedFiles(new DidChangeWatchedFilesCapabilities());
         workspaceClientCapabilities.setExecuteCommand(new ExecuteCommandCapabilities());
         workspaceClientCapabilities.setWorkspaceEdit(new WorkspaceEditCapabilities());
         workspaceClientCapabilities.setSymbol(new SymbolCapabilities());
-        workspaceClientCapabilities.setWorkspaceFolders(true);
+        workspaceClientCapabilities.setWorkspaceFolders(false);
         workspaceClientCapabilities.setConfiguration(false);
 
-        // text document capabilities
         TextDocumentClientCapabilities textDocumentClientCapabilities = new TextDocumentClientCapabilities();
         textDocumentClientCapabilities.setCodeAction(new CodeActionCapabilities());
-        textDocumentClientCapabilities.getCodeAction().setCodeActionLiteralSupport(new CodeActionLiteralSupportCapabilities(new CodeActionKindCapabilities()));
+        textDocumentClientCapabilities.getCodeAction().setCodeActionLiteralSupport(new CodeActionLiteralSupportCapabilities());
         textDocumentClientCapabilities.setCompletion(new CompletionCapabilities(new CompletionItemCapabilities(true)));
         textDocumentClientCapabilities.setDefinition(new DefinitionCapabilities());
         textDocumentClientCapabilities.setDocumentHighlight(new DocumentHighlightCapabilities());
@@ -592,15 +586,11 @@ public class LanguageServerWrapper {
         textDocumentClientCapabilities.setRename(new RenameCapabilities());
         textDocumentClientCapabilities.setSignatureHelp(new SignatureHelpCapabilities());
         textDocumentClientCapabilities.setSynchronization(new SynchronizationCapabilities(true, true, true));
-
         initParams.setCapabilities(
                 new ClientCapabilities(workspaceClientCapabilities, textDocumentClientCapabilities, null));
-        initParams.setClientInfo(new ClientInfo(ApplicationInfo.getInstance().getVersionName(), ApplicationInfo.getInstance().getFullVersion()));
+        initParams.setInitializationOptions(
+                serverDefinition.getInitializationOptions(URI.create(initParams.getRootUri())));
 
-
-        // custom initialization options and initialize params provided by users
-        initParams.setInitializationOptions(serverDefinition.getInitializationOptions(URI.create(initParams.getWorkspaceFolders().get(0).getUri())));
-        serverDefinition.customizeInitializeParams(initParams);
         return initParams;
     }
 
@@ -624,7 +614,8 @@ public class LanguageServerWrapper {
 
     private void setStatus(ServerStatus status) {
         this.status = status;
-        getWidget().ifPresent(widget -> widget.setStatus(status));
+        LSPServerStatusWidget widget = getWidget();
+        widget.setStatus(status);
     }
 
     public void crashed(Exception e) {
@@ -637,8 +628,8 @@ public class LanguageServerWrapper {
                     reconnect();
                 } else {
                     int response = Messages.showYesNoDialog(String.format(
-                                    "LanguageServer for definition %s, project %s keeps crashing due to \n%s\n"
-                                    , serverDefinition.toString(), project.getName(), e.getMessage()),
+                            "LanguageServer for definition %s, project %s keeps crashing due to \n%s\n"
+                            , serverDefinition.toString(), project.getName(), e.getMessage()),
                             "Language Server Client Warning", "Keep Connected", "Disconnect", PlatformIcons.CHECK_ICON);
                     if (response == Messages.NO) {
                         int confirm = Messages.showYesNoDialog("All the language server based plugin features will be disabled.\n" +
@@ -681,7 +672,10 @@ public class LanguageServerWrapper {
     }
 
     public void removeWidget() {
-        getWidget().ifPresent(LSPServerStatusWidget::dispose);
+        LSPServerStatusWidget widget = getWidget();
+        if (widget != null) {
+            widget.dispose();
+        }
     }
 
     /**
@@ -787,12 +781,12 @@ public class LanguageServerWrapper {
         });
     }
 
-    private Optional<LSPServerStatusWidget> getWidget() {
+    private LSPServerStatusWidget getWidget() {
         LSPServerStatusWidgetFactory factory = ((LSPServerStatusWidgetFactory) project.getService(StatusBarWidgetsManager.class).findWidgetFactory("LSP"));
         if (factory != null) {
-            return Optional.of(factory.getWidget(project));
+            return factory.getWidget(project);
         } else {
-            return Optional.empty();
+            return null;
         }
     }
 
