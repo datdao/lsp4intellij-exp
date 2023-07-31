@@ -149,6 +149,14 @@ public class DocumentEventManager {
             LOG.warn("trying to send open notification for document which was already opened!");
         } else {
             openDocuments.add(document);
+
+            EditorEventManager editorEventManager = EditorEventManagerBase.forUri(FileUtils.documentToUri(document));
+            if (editorEventManager == null) {
+                LOG.warn("no editor associated with document");
+                return;
+            }
+            Editor editor = editorEventManager.editor;
+
             String fileName = FileDocumentManager.getInstance().getFile(
                         editor.getDocument()).getFileType().getName().toLowerCase().replace(" ", "-");
             wrapper.getRequestManager().didOpen(new DidOpenTextDocumentParams(new TextDocumentItem(identifier.getUri(),
